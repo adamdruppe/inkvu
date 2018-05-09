@@ -30,6 +30,7 @@ class UserController extends Controller {
 
     public function performLogoutUser(Request $request) {
         $request->session()->forget('username');
+        $request->session()->forget('userId');
         return redirect()->route('index');
     }
 
@@ -44,6 +45,16 @@ class UserController extends Controller {
             $role = $credentials_valid['role'];
             $request->session()->put('username', $username);
             $request->session()->put('role', $role);
+
+            // update last_login
+            $user = $credentials_valid['user'];
+            $request->session()->put('userId', $user->id);
+            $request->session()->put('isNewUser', 0);
+            if (empty($user->last_login)) {
+                $request->session()->put('isNewUser', 1);
+            }
+            $user->last_login = date("Y-m-d H:i:s");
+            $user->save();
 
             return redirect()->route('index');
         }
@@ -71,7 +82,7 @@ class UserController extends Controller {
     public function instagram(Request $request) {
 	$client_id = env("INSTAGRAM_ID");
 	$client_secret = env("INSTAGRAM_SECRET");
-	$redirect_url = "http://ink.vu/instagram";
+	$redirect_url = env('APP_PROTOCOL') . env('APP_ADDRESS') . '/' . 'instagram';
 
 	if(isset($_GET['error'])) {
 		echo htmlentities($_GET['error_description']);
@@ -117,7 +128,7 @@ class UserController extends Controller {
                     }
                     $ip = $request->ip();
 
-                    $user = UserFactory::createUser($username, $email, $password, $active, $ip, $api_key, $api_active);
+                    $user = UserFactory::createUser($username, $email, $password, $active, $ip, $api_key, $api_active, false, $json->user->profile_picture);
 
                 } else {
                     $user = $users->first();
@@ -128,6 +139,12 @@ class UserController extends Controller {
                     $user->profile_picture_url = $json->user->profile_picture;
                 }
 
+                $request->session()->put('isNewUser', 0);
+                $request->session()->put('userId', $user->id);
+                if (empty($user->last_login)) {
+                    $request->session()->put('isNewUser', 1);
+                }
+                $user->last_login = date("Y-m-d H:i:s");
                 $user->save();
 
                 $user = user::where('active', 1)
@@ -136,6 +153,7 @@ class UserController extends Controller {
 
                 $role = $user->role;
                 $request->session()->put('username', $username);
+                $request->session()->put('insta_token', $json->access_token);
 
 		return redirect("/");
 	} else {

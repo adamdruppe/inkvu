@@ -50,7 +50,7 @@ class UserHelper {
             return false;
         }
         else {
-            return ['username' => $username, 'role' => $user->role];
+            return ['username' => $username, 'role' => $user->role, 'user' => $user];
         }
     }
 
@@ -105,5 +105,27 @@ class UserHelper {
 
     public static function getUserByEmail($email, $inactive=false) {
         return self::getUserBy('email', $email, $inactive);
+    }
+
+    public static function grabImage($url, $saveto) {
+        $ch = curl_init ($url);
+        curl_setopt($ch, CURLOPT_HEADER, 0);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_BINARYTRANSFER,1);
+        $raw=curl_exec($ch);
+        curl_close ($ch);
+
+        if(file_exists($saveto)){
+            unlink($saveto);
+        }
+
+        if ($raw) {
+            $fp = fopen($saveto,'x');
+            fwrite($fp, $raw);
+            fclose($fp);
+            chmod($saveto, 0777);
+            return true;
+        }
+        return false;
     }
 }

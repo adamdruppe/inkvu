@@ -5,8 +5,15 @@ use Illuminate\Http\Request;
 use App\Helpers\LinkHelper;
 use App\Helpers\CryptoHelper;
 use App\Helpers\UserHelper;
+use App\Helpers\NotifyHelper;
 use App\Models\User;
 use App\Factories\UserFactory;
+use Validator;
+use Illuminate\Support\Facades\Input;
+use Aws\Sns\SnsClient;
+use Aws\Credentials\Credentials;
+use Mail;
+use App\Models\NotifySettings;
 
 class AjaxController extends Controller {
     /**
@@ -224,5 +231,210 @@ class AjaxController extends Controller {
         $link->save();
 
         return ($new_status ? "Enable" : "Disable");
+    }
+
+    public function editLink(Request $request) {
+
+        $link_ending = $request->input('link_ending');
+        $link = LinkHelper::linkExists($link_ending, session('username'));
+
+        $jsonData = array('code' => 0);
+        if (!$link) {
+            $jsonData['message'] = 'Link not found.';
+        }
+
+        $link->title = $request->input('title');
+        $link->description = $request->input('description');
+        $link->save();
+
+        $jsonData['code'] = 1;
+        $jsonData['message'] = 'OK.';
+        echo json_encode($jsonData);
+    }
+
+    public function saveNotification(Request $request)
+    {
+        $username = session('username');
+        $user = user::where('active', 1)
+            ->where('username', $username)
+            ->first();
+        $jsonData = array('code' => 0);
+
+        $payload = array(
+            'push_web_check' => $request->input('push_web_check'),
+            'push_email_check' => $request->input('push_email_check'),
+            'push_email' => $user->email,
+            'push_mobile_check' => $request->input('push_mobile_check'),
+            'push_mobile' => $request->input('push_mobile'),
+            'push_notify_user' => $request->input('push_notify_user'),
+            'push_web_userid' => $request->input('push_web_userid')
+        );
+
+        if (!empty($user->mobile)) {
+            $payload['push_mobile'] = $user->mobile;
+        }
+
+        $notifySettings = NotifyHelper::saveNotification($payload);
+
+
+        if ($notifySettings) {
+            $jsonData['data'] = $notifySettings->id;
+            $jsonData['code'] = 1;
+            $jsonData['message'] = 'OK';
+        }
+
+        echo json_encode($jsonData);
+    }
+
+    public function updateNotification(Request $request)
+    {
+        $jsonData = array('code' => 0);
+        $payload = array(
+            'id' => $request->input('id'),
+            'push_web_userid' => $request->input('push_web_userid')
+        );
+
+        $notifySettings = NotifyHelper::updateNotification($payload);
+        if ($notifySettings) {
+            $jsonData['data'] = $payload['id'];
+            $jsonData['code'] = 1;
+            $jsonData['message'] = 'OK';
+        }
+
+        echo json_encode($jsonData);
+    }
+
+    public function subscribeSNS(Request $request)
+    {
+        $jsonData = array('code' => 0);
+        try {
+            $client = SnsClient::factory(
+                array(
+                    'region'  => 'us-east-1',
+                    'version' => 'latest',
+                    'credentials' => [
+                        'key'     => env('SNS_KEY'),
+                        'secret'  => env('SNS_SECRET')
+                    ]
+                )
+            );
+
+            // subscribe
+            $result = $client->subscribe(array(
+                'TopicArn' => 'arn:aws:sns:us-east-1:267506388672:ink-notification',
+                'Protocol' => 'sms',
+                'Endpoint' => $request->input('mobile')
+            ));
+
+            // send verify
+            $randomNumber = random_int(111111, 999999);
+            $request->session()->put('subscribeSNS', $randomNumber);
+            $request->session()->put('isVerifiedSNS', 0);
+            $payload = array(
+                'Message' => $randomNumber,
+                'MessageStructure' => 'string',
+                'PhoneNumber' => $request->input('mobile'),
+                'SenderID' => "Inkvu",
+                'SMSType' => "Promotional",
+            );
+            $client->publish($payload);
+
+            $jsonData['code'] = 1;
+            $jsonData['result'] = $result;
+        } catch (\Exception $e) {
+            $jsonData['message'] = $e->getMessage();
+        }
+
+        echo json_encode($jsonData);
+    }
+
+    public function verifySubscribeSNS(Request $request)
+    {
+        $jsonData = array('code' => 0);
+        try {
+            if (session('subscribeSNS') == $request->input('verifyNumber')) {
+                $jsonData['code'] = 1;
+                $request->session()->forget('isVerifiedSNS');
+                $request->session()->put('isVerifiedSNS', 1);
+            }
+        } catch (\Exception $e) {
+            $jsonData['message'] = $e->getMessage();
+        }
+
+        echo json_encode($jsonData);
+    }
+
+    public function subscribeEmail(Request $request)
+    {
+        $jsonData = array('code' => 0);
+        try {
+            // send verify
+            $randomNumber = random_int(111111, 999999);
+            $request->session()->put('subscribeEmail', $randomNumber);
+            $request->session()->put('isVerifiedEmail', 0);
+
+            $email = $request->input('email');
+            Mail::send('emails.verify_email', ['randomNumber' => $randomNumber], function ($m) use ($email) {
+                $m->from('notification@ink.vu', 'Inkvu Notification');
+                $m->to($email, $email)->subject('Subscribed verify email');
+            });
+
+            $jsonData['code'] = 1;
+        } catch (\Exception $e) {
+            $jsonData['message'] = $e->getMessage();
+        }
+
+        echo json_encode($jsonData);
+    }
+
+    public function verifyEmail(Request $request)
+    {
+        $jsonData = array('code' => 0);
+        try {
+            if (session('subscribeEmail') == $request->input('verifyNumber')) {
+                $jsonData['code'] = 1;
+                $request->session()->forget('isVerifiedEmail');
+                $request->session()->put('isVerifiedEmail', 1);
+            }
+        } catch (\Exception $e) {
+            $jsonData['message'] = $e->getMessage();
+        }
+
+        echo json_encode($jsonData);
+    }
+
+    public function changeSettings(Request $request)
+    {
+        $jsonData = array('code' => 0);
+        if (!$this->isLoggedIn()) {
+            $jsonData['message'] = 'Authenticate failed';
+            echo json_encode($jsonData);
+            exit();
+        }
+
+        $username = session('username');
+        $email = $request->input('push_email');
+        $mobile = $request->input('push_mobile');
+        $user = UserHelper::getUserByUsername($username);
+
+        if (session('isVerifiedEmail')) {
+            $user->email = $email;
+        }
+        if (session('isVerifiedSNS')) {
+            $user->mobile = $mobile;
+        }
+
+        $user->save();
+
+        $notifySetting = NotifySettings::where('creator', $user->id)->get();
+        foreach ($notifySetting as $noti) {
+            $noti->email = $email;
+            $noti->mobile = $mobile;
+            $noti->save();
+        }
+
+        $jsonData['code'] = 1;
+        $jsonData['message'] = 'Updated!';
+        echo json_encode($jsonData);
     }
 }

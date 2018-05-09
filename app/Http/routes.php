@@ -43,12 +43,24 @@ $app->get('/admin/stats/{short_url}', ['uses' => 'StatsController@displayStats']
 
 $app->post('/login', ['as' => 'plogin', 'uses' => 'UserController@performLogin']);
 $app->post('/shorten', ['as' => 'pshorten', 'uses' => 'LinkController@performShorten']);
+$app->post('/editpicture', ['as' => 'editpicture', 'uses' => 'LinkController@performEditPicture']);
 $app->post('/describe', ['as' => 'pdescribe', 'uses' => 'LinkController@getLinkInfo']);
 $app->post('/delete', ['as' => 'pdelete', 'uses' => 'LinkController@performDeletion']);
 $app->post('/lost_password', ['as' => 'plost_password', 'uses' => 'UserController@performSendPasswordResetCode']);
 $app->post('/reset_password/{username}/{recovery_key}', ['as' => 'preset_password', 'uses' => 'UserController@performPasswordReset']);
 
 $app->post('/admin/action/change_password', ['as' => 'change_password', 'uses' => 'AdminController@changePassword']);
+$app->post('/admin/action/change_setting', ['as' => 'change_setting', 'uses' => 'AdminController@changeSettings']);
+$app->post('/admin/action/change_picture', ['as' => 'change_picture', 'uses' => 'AdminController@changePicture']);
+$app->post('/edit_link', ['as' => 'elink', 'uses' => 'AjaxController@editLink']);
+$app->post('/save_notification', ['uses' => 'AjaxController@saveNotification']);
+$app->post('/update_notification', ['uses' => 'AjaxController@updateNotification']);
+$app->post('/verifysns', ['uses' => 'AjaxController@subscribeSNS']);
+$app->post('/verifynumbersns', ['uses' => 'AjaxController@verifySubscribeSNS']);
+$app->post('/verifyemail', ['uses' => 'AjaxController@subscribeEmail']);
+$app->post('/verifynumberemail', ['uses' => 'AjaxController@verifyEmail']);
+
+$app->post('/save_settings', ['uses' => 'AjaxController@changeSettings']);
 
 $app->group(['prefix' => '/api/v2', 'namespace' => 'App\Http\Controllers'], function ($app) {
     /* API internal endpoints */

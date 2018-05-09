@@ -6,3 +6,5 @@ env
 .env.bak
 .env.example
 composer.phar
+composer.lock
+public/users/*

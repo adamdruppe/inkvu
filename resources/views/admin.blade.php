@@ -3,6 +3,9 @@
 @section('css')
 <link rel='stylesheet' href='/css/admin.css'>
 <link rel='stylesheet' href='/css/datatables.min.css'>
+<style>
+    .tab-pane {margin-bottom: 20px;}
+</style>
 @endsection
 
 @section('content')
@@ -11,7 +14,7 @@
         <ul class='nav nav-pills nav-stacked admin-nav' role='tablist'>
             <li role='presentation' aria-controls="home" class='admin-nav-item active'><a href='#home'>Home</a></li>
             <li role='presentation' aria-controls="links" class='admin-nav-item'><a href='#links'>Links</a></li>
-            <li role='presentation' aria-controls="settings" class='admin-nav-item'><a href='#settings'>Settings</a></li>
+            <li role='presentation' aria-controls="settings" class='admin-nav-item'><a href='#settings'>Edit profile</a></li>
 
             @if ($role == $admin_role)
             <li role='presentation' class='admin-nav-item'><a href='#admin'>Admin</a></li>
@@ -27,6 +30,38 @@
             <div role="tabpanel" class="tab-pane active" id="home">
                 <h2>Welcome to your {{env('APP_NAME')}} dashboard!</h2>
                 <p>Use the links on the left hand side to navigate your {{env('APP_NAME')}} dashboard.</p>
+                <a href="#" data-toggle="modal" data-target="#myModal">Social links</a>
+            </div>
+
+            <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                            <h4 class="modal-title" id="myModalLabel">Edit Profile</h4>
+                        </div>
+                        <div class="modal-body">
+                            <form method="POST" action="/{{$user->username}}/update">
+                                <div class="modal-body">
+                                    <input type="hidden" name='_token' value='{{csrf_token()}}' />
+                                    <div class="form-group">
+                                        <input name="facebook_url" type="url" value="{{$user->facebook_url}}" class="form-control" placeholder="Facebook URL">
+                                    </div>
+                                    <div class="form-group">
+                                        <input name="twitter_url" type="url" value="{{$user->twitter_url}}" class="form-control" placeholder="Twitter URL">
+                                    </div>
+                                    <div class="form-group">
+                                        <input name="instagram_url" type="url" value="{{$user->instagram_url}}" class="form-control" placeholder="Instagram URL">
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                                    <button type="submit" class="btn btn-primary">Save changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div role="tabpanel" class="tab-pane" id="links">
@@ -37,11 +72,24 @@
 
             <div role="tabpanel" class="tab-pane" id="settings">
                 <h3>User Profile</h3>
-                    <img style="float: left; margin-right: 1em; margin-bottom: 1em;" src="{{$profile_picture_url}}" alt="" />
+                    <img style="width: 150px; height:150px;float: left; margin-right: 1em; margin-bottom: 1em;" src="{{$profile_picture_url}}" alt="" />
                     Website: <a href="{{$website}}">{{$website}}</a>
                     <div>{{$bio}}</div>
-                    <br clear="both" />
+                <br clear="both" />
+                <form enctype="multipart/form-data" method="post" action="/admin/action/change_picture" style="margin-bottom: 10px;">
+                    Picture profile: <input type="file" name="picture_profile">
+                    <input type="hidden" name='_token' value='{{csrf_token()}}' />
+                    <button type="submit" class='btn btn-success change-password-btn'>Submit picture</button>
+                </form>
 
+                <form action='/admin/action/change_setting' method='POST'>
+                    Email: <input disabled class="form-control password-box" type='text' name='txt_email' value="{{$user->email}}" />
+                    Mobile: <input disabled class="form-control password-box" type='text' name='txt_mobile' value="{{$user->mobile}}" />
+                    <input type="hidden" name='_token' value='{{csrf_token()}}' />
+                    <a class='btn btn-success change-password-btn' data-toggle="modal" data-target="#pushModal">Change</a>
+                </form>
+
+                @if ($user->is_first_pass == 0)
                 <h3>Change Password</h3>
                 <form action='/admin/action/change_password' method='POST'>
                     Old Password: <input class="form-control password-box" type='password' name='current_password' />
@@ -49,6 +97,14 @@
                     <input type="hidden" name='_token' value='{{csrf_token()}}' />
                     <input type='submit' class='btn btn-success change-password-btn'/>
                 </form>
+                @else
+                    <h3>Add Password</h3>
+                    <form action='/admin/action/change_password' method='POST'>
+                        Password: <input class="form-control password-box" type='password' name='new_password' />
+                        <input type="hidden" name='_token' value='{{csrf_token()}}' />
+                        <input type='submit' class='btn btn-success change-password-btn'/>
+                    </form>
+                @endif
             </div>
 
             @if ($role == $admin_role)
@@ -131,6 +187,63 @@
     </div>
 </div>
 
+<div class="modal fade" id="pushModal" tabindex="-1" role="dialog" aria-labelledby="pushModal">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="myModalLabel">Change settings?</h4>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="subscribeoptions">
+                        <p id="errMsg" style="color: red; display: none;"></p>
+
+                        <div class="optionslabel">Email Notifications</div>
+                        <div class="input-group email-group">
+                            <input value="{{$user->email}}" type="text" id="push_email" class="form-control" placeholder="Your Email">
+                                <span class="input-group-btn">
+                                  <button class="btn btn-default pushVerifyEmail" type="button">Verify</button>
+                                </span>
+                        </div>
+
+                        <div class="verifylabelemail" style="display: none; margin: 10px 0px;">Your Email: <strong style="color: #e95950"></strong></div>
+                        <div class="input-group verify-group-email" style="display: none">
+                            <input value="" type="text" id="push_email_verify" class="form-control" placeholder="Please enter verify number #">
+                                <span class="input-group-btn">
+                                    <button class="btn btn-default pushVerifyNumberEmail" type="button">Verify</button>
+                                </span>
+                        </div>
+                        <div class="email_verified" style="color: #e95950; display: none"></div>
+                        <div class="verify_error_label_email" style="color: #e95950; display: none">Verify number incorrect</div>
+
+
+
+                        <div class="optionslabel">Mobile Notifications</div>
+                        <div class="input-group mobile-group">
+                            <input value="{{$user->mobile}}" type="text" id="push_mobile" class="form-control" placeholder="Your Mobile #">
+                                <span class="input-group-btn">
+                                    <button class="btn btn-default pushVerify" type="button">Verify</button>
+                                </span>
+                        </div>
+                        <div class="verifylabel" style="display: none; margin: 10px 0px;">Your Mobile: <strong style="color: #e95950"></strong></div>
+                        <div class="input-group verify-group" style="display: none">
+                            <input value="" type="text" id="push_mobile_verify" class="form-control" placeholder="Please enter verify number #">
+                                <span class="input-group-btn">
+                                    <button class="btn btn-default pushVerifyNumber" type="button">Verify</button>
+                                </span>
+                        </div>
+                        <div class="mobile_verified" style="color: #e95950; display: none"></div>
+                        <div class="verify_error_label" style="color: #e95950; display: none">Verify number incorrect</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary saveNotify">Save Options</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @endsection
 
@@ -166,4 +279,151 @@
     </div>
 </script>
 
+<script>
+    $('#pushModal').on('click', '.saveNotify, .pushSave', function () {
+
+        var data = {
+            push_email: $("#push_email").val(),
+            push_mobile: $("#push_mobile").val()
+        };
+
+        $.ajax({
+            url: '/save_settings',
+            data: data,
+            dataType: 'json',
+            type: 'POST',
+            success: function(jsonData) {
+                if (parseInt(jsonData.code) != 1) {
+                    $("#errMsg").html(jsonData.message);
+                    $("#errMsg").show();
+                } else {
+                    location.reload();
+                    $("#pushModal").modal('hide');
+                    $("#errMsg").hide();
+                }
+            }
+        });
+    });
+
+
+    $('#pushModal').on('click', '.pushVerifyEmail', function () {
+        var email = $("#push_email").val();
+        if (!email) {
+            return false;
+        }
+
+        var data = {
+            email: $("#push_email").val()
+        };
+        $.ajax({
+            url: '/verifyemail',
+            data: data,
+            dataType: 'json',
+            type: 'POST',
+            success: function(jsonData) {
+
+            }
+        });
+
+        $(".email-group").hide();
+        $(".verify-group-email").show();
+        $(".verifylabelemail strong").text(email);
+        $(".verifylabelemail").show();
+    });
+
+    $('#pushModal').on('click', '.pushVerifyNumberEmail', function () {
+        var verifyNumber = $("#push_email_verify").val();
+        if (!verifyNumber) {
+            $(".push_email_verify").addClass("input-error");
+            $(".verify_error_label_email").show();
+            return false;
+        }
+
+        var data = {
+            verifyNumber: verifyNumber
+        };
+        $.ajax({
+            url: '/verifynumberemail',
+            data: data,
+            dataType: 'json',
+            type: 'POST',
+            success: function(jsonData) {
+                if (jsonData.code == 1) {
+                    $(".push_email_verify").removeClass("input-error");
+                    $(".verify_error_label_email").hide();
+
+                    $(".verifylabelemail").hide();
+                    $(".verify-group-email").hide();
+                    $(".email_verified").html($("#push_email").val() + ' <span style="color: #cccccc;">Verified</span>');
+                    $(".email_verified").show();
+                } else {
+                    $(".push_email_verify").addClass("input-error");
+                    $(".verify_error_label_email").show();
+                }
+            }
+        });
+    });
+
+
+
+
+
+    $('#pushModal').on('click', '.pushVerify', function () {
+        var mobile = $("#push_mobile").val();
+        if (!mobile) {
+            return false;
+        }
+
+        var data = {
+            mobile: $("#push_mobile").val()
+        };
+        $.ajax({
+            url: '/verifysns',
+            data: data,
+            dataType: 'json',
+            type: 'POST',
+            success: function(jsonData) {
+
+            }
+        });
+
+        $(".mobile-group").hide();
+        $(".verify-group").show();
+        $(".verifylabel strong").text(mobile);
+        $(".verifylabel").show();
+    });
+
+    $('#pushModal').on('click', '.pushVerifyNumber', function () {
+        var verifyNumber = $("#push_mobile_verify").val();
+        if (!verifyNumber) {
+            $(".push_mobile_verify").addClass("input-error");
+            $(".verify_error_label").show();
+            return false;
+        }
+
+        var data = {
+            verifyNumber: verifyNumber
+        };
+        $.ajax({
+            url: '/verifynumbersns',
+            data: data,
+            dataType: 'json',
+            type: 'POST',
+            success: function(jsonData) {
+                if (jsonData.code == 1) {
+                    $(".push_mobile_verify").removeClass("input-error");
+                    $(".verify_error_label").hide();
+
+                    $(".verifylabel").hide();
+                    $(".verify-group").hide();
+                    $(".mobile_verified").html($("#push_mobile").val() + ' <span style="color: #cccccc;">Verified</span>');
+                    $(".mobile_verified").show();
+                } else {
+                    $(".push_mobile_verify").addClass("input-error");
+                    $(".verify_error_label").show();
+                }
+            }
+        });
+    });
+</script>
 @endsection
